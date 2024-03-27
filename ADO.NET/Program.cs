@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Data;
+using System.Data.Common;
 using System.Data.SqlClient;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -11,39 +14,54 @@ namespace ADO.NET
 {
     public class Program
     {
-        static void Main(string[] args)
-        {
-            string conn = @"Data Source=DESKTOP-GA6HPG7; Initial Catalog=Fruits and vegetables; Integrated Security=True";
+        private static string providerName = ConfigurationManager.AppSettings["provider"];
+        private static string connString = ConfigurationManager.ConnectionStrings["conn"].ConnectionString;
 
-            using (SqlConnection connection = new SqlConnection(conn))
+        static async Task Main(string[] args)
+        {
+            DbProviderFactory factory = DbProviderFactories.GetFactory(providerName);
+
+            using (DbConnection connection = factory.CreateConnection())
             {
+                if (connection == null)
+                {
+                    Console.WriteLine("Failed to create connection");
+                    return;
+                }
+
+                connection.ConnectionString = connString;
+
                 try
                 {
-                    connection.Open();
-                    Console.WriteLine("Complete");
+                    await connection.OpenAsync();
+                    Console.WriteLine("Connection successful");
 
                     string query = null;
 
-                    while (true) 
-                    { 
+                    while (true)
+                    {
                         Console.WriteLine("[1] - all info\n" +
-                            "[2] - all names\n" +
-                            "[3] - all colors\n" +
-                            "[4] - max callories\n" +
-                            "[5] - min callories\n" +
-                            "[6] - avg callories\n" +
-                            "[7] - vegetables count\n" +
-                            "[8] - fruits count\n" +
-                            "[9] - show by color\n" +
-                            "[10] - show count by color\n" +
-                            "[11] - show by cal >\n" +
-                            "[12] - show by cal in range\n" +
-                            "[13] - show where color red or yellow\n");
+                                          "[2] - all names\n" +
+                                          "[3] - all colors\n" +
+                                          "[4] - max callories\n" +
+                                          "[5] - min callories\n" +
+                                          "[6] - avg callories\n" +
+                                          "[7] - vegetables count\n" +
+                                          "[8] - fruits count\n" +
+                                          "[9] - show by color\n" +
+                                          "[10] - show count by color\n" +
+                                          "[11] - show by cal >\n" +
+                                          "[12] - show by cal in range\n" +
+                                          "[13] - show where color red or yellow\n");
 
                         int choose;
+                        string inputVar = null;
+                        string range_start = null;
+                        string range_end = null;
+
                         choose = Convert.ToInt32(Console.ReadLine());
 
-                        switch (choose) 
+                        switch (choose)
                         {
                             case 1:
                                 query = "SELECT * FROM Product";
@@ -70,68 +88,119 @@ namespace ADO.NET
                                 break;
 
                             case 7:
-                                query = "SELECT COUNT(*) FROM Product\r\nWHERE Product.type LIKE 'vegetable'";
+                                query = "SELECT COUNT(*) FROM Product WHERE Product.type LIKE 'vegetable'";
                                 Console.WriteLine("Amount of vegetables: ");
                                 break;
 
                             case 8:
-                                query = "SELECT COUNT(*) FROM Product\r\nWHERE Product.type LIKE 'fruit'";
+                                query = "SELECT COUNT(*) FROM Product WHERE Product.type LIKE 'fruit'";
                                 Console.WriteLine("Amount of fruits: ");
                                 break;
 
                             case 9:
                                 Console.WriteLine("Enter ur color: ");
-                                string color = Console.ReadLine();
-                                query = "SELECT COUNT(*) FROM Product\r\nWHERE color LIKE '" + color + "'";
-                                Console.WriteLine("Amount of color " + color + ": ");
+                                inputVar = Console.ReadLine();
+                                query = "SELECT COUNT(*) FROM Product WHERE color LIKE @color";
+                                Console.WriteLine("Amount of color " + inputVar + ": ");
                                 break;
 
                             case 10:
-                                query = "SELECT color, COUNT(*) FROM Product\r\nGROUP BY color";
+                                query = "SELECT color, COUNT(*) FROM Product GROUP BY color";
                                 break;
 
                             case 11:
                                 Console.WriteLine("Enter end of range: ");
-                                string cal = Console.ReadLine();
-                                query = "SELECT * FROM Product WHERE cal > " + cal;
+                                inputVar = Console.ReadLine();
+                                query = "SELECT * FROM Product WHERE cal > @inputVar";
                                 break;
 
                             case 12:
                                 Console.WriteLine("Enter begin of range: ");
-                                string range_start = Console.ReadLine();
+                                range_start = Console.ReadLine();
 
                                 Console.WriteLine("Enter end of range: ");
-                                string range_end = Console.ReadLine();
-                                query = "SELECT * FROM Product\r\nWHERE cal > " + range_start + " AND cal < " + range_end;
+                                range_end = Console.ReadLine();
+                                query = "SELECT * FROM Product WHERE cal > @range_start AND cal < @range_end";
                                 break;
 
                             case 13:
-                                query = "SELECT * FROM Product\r\nWHERE color LIKE 'yellow' OR color LIKE 'red'";
+                                query = "SELECT * FROM Product WHERE color LIKE 'yellow' OR color LIKE 'red'";
                                 break;
                         }
 
-                        using (SqlCommand command = new SqlCommand(query, connection))
+                        using (DbCommand command = factory.CreateCommand())
                         {
-                            using (SqlDataReader reader = command.ExecuteReader())
+                            if (command == null)
                             {
-                                while (reader.Read())
+                                Console.WriteLine("Failed to create command.");
+                                return;
+                            }
+
+                            command.Connection = connection;
+                            command.CommandText = query;
+
+                            if (choose == 9 || choose == 11 || choose == 12)
+                            {
+                                if (choose == 9)
                                 {
-                                    for (int i = 0; i < reader.FieldCount; i++)
-                                    {
-                                        Console.Write(reader[i] + " ");
-                                    }
-                                    Console.WriteLine();
+                                    command.Parameters.Add(CreateParameter("color", DbType.String, inputVar));
+                                }
+
+                                else if (choose == 11)
+                                {
+                                    command.Parameters.Add(CreateParameter("cal", DbType.Int32, inputVar));
+                                }
+
+                                else if (choose == 12)
+                                {
+                                    command.Parameters.Add(CreateParameter("range_start", DbType.Int32, range_start));
+                                    command.Parameters.Add(CreateParameter("range_end", DbType.Int32, range_end));
                                 }
                             }
-                        }
-                    }  
-                }
-                catch(Exception ex)
-                {
 
-                    Console.WriteLine("Error" + ex.Message);
+                            Stopwatch stopwatch = new Stopwatch();
+                            stopwatch.Start();
+
+                            using (DbDataReader reader = await command.ExecuteReaderAsync())
+                            {
+                                stopwatch.Stop();
+                                TimeSpan ts = stopwatch.Elapsed;
+
+                                if (reader.HasRows)
+                                {
+                                    while (await reader.ReadAsync())
+                                    {
+                                        for (int i = 0; i < reader.FieldCount; i++)
+                                        {
+                                            Console.Write(reader[i] + " ");
+                                        }
+                                        Console.WriteLine();
+                                    }
+                                }
+                                else
+                                {
+                                    Console.WriteLine("No data found");
+                                }
+
+                                Console.WriteLine($"Execution Time: {ts.TotalMilliseconds} milliseconds");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error: " + ex.Message);
                 }
             }
+        }
+
+        private static DbParameter CreateParameter(string name, DbType type, object value)
+        {
+            DbParameter parameter = DbProviderFactories.GetFactory(providerName).CreateParameter();
+            parameter.ParameterName = name;
+            parameter.DbType = type;
+            parameter.Value = value;
+            return parameter;
         }
     }
 }
