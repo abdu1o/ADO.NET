@@ -17,6 +17,8 @@ namespace ADO.NET
         private static string providerName = ConfigurationManager.AppSettings["provider"];
         private static string connString = ConfigurationManager.ConnectionStrings["conn"].ConnectionString;
 
+        private static Dapper dapper = new Dapper();
+
         static async Task Main(string[] args)
         {
             DbProviderFactory factory = DbProviderFactories.GetFactory(providerName);
@@ -52,7 +54,12 @@ namespace ADO.NET
                                           "[10] - show count by color\n" +
                                           "[11] - show by cal >\n" +
                                           "[12] - show by cal in range\n" +
-                                          "[13] - show where color red or yellow\n");
+                                          "[13] - show where color red or yellow\n" +
+                                          "[14] - search by id\n" +
+                                          "[15] - show all data\n" +
+                                          "[16] - update element\n" +
+                                          "[17] - delet element\n" +
+                                          "[18] - cal average\n");
 
                         int choose;
                         string inputVar = null;
@@ -125,6 +132,26 @@ namespace ADO.NET
 
                             case 13:
                                 query = "SELECT * FROM Product WHERE color LIKE 'yellow' OR color LIKE 'red'";
+                                break;
+
+                            case 14:
+                                dapper.GetProductById(1, connString);
+                                break;
+
+                            case 15:
+                                dapper.GetProducts(connString);
+                                break;
+
+                            case 16:
+                                dapper.UpdateProduct(1, "pineapple", "fruit", "green", 12, connString);
+                                break;
+
+                            case 17:
+                                dapper.DeleteProduct(1, connString);
+                                break;
+
+                            case 18:
+                                dapper.GetAverageCalories(connString);
                                 break;
                         }
 
